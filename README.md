@@ -5,13 +5,21 @@
 2. python3 = python 3.5 (3.6 likely to not work)
 
 ## Setup:
-#### Create System Environment Variable
+#### 1. Create System Environment Variable
+
 `SAPO_TEST_DIR`
-pointing to the directory (without final slash /) where the application resides, and where it can read and write files & folders, e.g.
+
+pointing to
+
 `/home/<yourusername>/empty_shell`
-where *<yourusername>* is the folder into which you cloned the *empty_shell* repo
+
+i.e. the directory (without final slash /) where the application resides, and where it can read and write files & folders, i.e. with
+
+*\<yourusername\>* = folder with your *empty_shell* repo clone
+
 *Don't forget you may need to restart system for this system variable to be recognized within python*
-#### Set up virtualenv with its requirements etc.
+
+#### 2. Set up virtualenv with its requirements etc.
 Starting within the repo folder, e.g. `/home/<yourusername>/empty_shell`:
 ```
 cd py
