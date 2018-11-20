@@ -1,0 +1,27 @@
+Based on https://github.com/plotly/dash-auth
+With few small but for crucial changes for me
+FH, OXEE, 20181107
+
+Crucial:
+	Usage seems to require some additional resources that
+	are not automatically available, such as ua_parser
+	(which is from package ua-parser - mind the dash instead
+	of underscore!)
+	Two-three options:
+		The one I did and worked, though pbly stupid:
+			FIRST temporarily install
+			the original dash-auth (from package manager, e.g.
+			for py with virtualenv in CLion) and then uninstall,
+			so that somehow e.g.
+				from ua_parser import user_agent_parser
+			works properly.
+		Pbly more natural:
+			Well simply install the package ua-parser and co.,
+			whichever you first get complaint about them missing
+		Maybe nicest:
+			Check the dev-requirements.txt that I still keep
+			from the original dash-auth package, and see what's
+			required (or even: adapt it to your needs and have
+			virtualenv get these requirements??)
+
+			

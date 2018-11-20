@@ -1,0 +1,8 @@
+dash
+dash-html-components
+dash-core-components
+pandas
+matplotlib
+easygui
+passlib
+ua_parser
