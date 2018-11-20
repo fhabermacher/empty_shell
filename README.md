@@ -1,10 +1,10 @@
 # empty_shell
-## Prerequisites:
+## Prerequisites
 
 1. Ubuntu 16.04 (this is where some of the code was written on)
 2. python3 = python 3.5 (3.6 likely to not work)
 
-## Setup:
+## Setup
 #### 1. Create System Environment Variable
 
 `SAPO_TEST_DIR`
@@ -26,7 +26,7 @@ cd py
 ./setup.sh
 ```
 
-## Launching:
+## Launching
 Again from the repo folder, e.g. `/home/<yourusername>/empty_shell`:
 ```	
 cd py
@@ -40,7 +40,7 @@ Login credentials in browser app:
 * PW: yes
 
 
-## Verifying current functionality remains intact after deployment:
+## Verifying current functionality remains intact after deployment
 
 1. File upload
    - *Drag or Browse File(s)* fields must allow to add files
