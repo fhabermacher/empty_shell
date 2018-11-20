@@ -73,11 +73,9 @@ progressnce_silent = 1 # Avoid each zns from printing lots on comand line, inste
 linemode = 'lines' # Graph line mode: 'lines+markers' or 'lines', or ...?
 maxbar_allow = 60 # For bar plot: Max number of bars allowed to be plotted; else force reversion to line
 # -File system
-freespaceminGB = 20 # How many spare Gigabytes of space requested before
+freespaceminGB = 1 # How many spare Gigabytes of space requested before
 # allowing people to upload files. E.g. 20
 
-# From https://community.plot.ly/t/suppress-dash-server-posts-to-console/8855/2
-# Use 'import logging' & 'log = logging.getLogger('werkzeug');log.setLevel(logging.ERROR)'
 #   Note, improvement would be: is there a way to suppress logging all while preserving display of router link? Or can I get router link separately?
 if suppress_logging:
     fd('Typical links to app can be http://127.0.0.1:5000/ or http://127.0.0.1:8050/ . To see actual link, set suppress_logging=False')
@@ -91,23 +89,8 @@ Copyright: Oxford Energy Economics, {0}. All rights reserved.
 Use, copying, and spreading of any code, data, pictures,
 ideas or algorithms without explicit permission by Oxford
 Energy Economics is strictly prohibited.""".format(datestamp)
-oxee_copyright1line = "Copyright: Oxford Energy Economics Ltd., {0}. " \
-                      "All rights reserved. Use, copying, and" \
-                      "spreading of any code, data, pictures, ideas" \
-                      "or algorithms without explicit permission by" \
-                      "Oxford Energy Economics Ltd. is strictly prohibited".format(datestamp)
-oxee_copyright_listnocommas = [
-    "Copyright: Oxford Energy Economics Ltd.",
-    fs("Created ", datestamp),
-    "All rights reserved. Use or copying",
-    "or spreading of any code or data or picture",
-    "or algorithm or ideas without explicit",
-    "permission by Oxford Energy Economics Ltd.",
-    "is strictly prohibited"
-    ]
 
 version = 'Test'
-
 
 x = Api("myApi")
 sha256salt = x.sha256salt
@@ -210,37 +193,9 @@ conv_share_str_base = 'Solved ca. '
 
 next_init_dropdown_value = {sub: False for sub in up_sub}
 
-# Whether sort data, and if so, whether sort before or after possible aggregation (cf. aggOptions)
-sortOptions = [{'label': o, 'value': o} for o in ['No sort', 'Sort pre-aggregation', 'Sort post-agg']]
-sortchoice = sortOptions[0]['value']
-# Initializations/Declarations of state variables
-logaxis = False
-lockzoom = False
-z_on_z = 0 # Whether current data or changes: 0: Current data, 1: zns-on-zns changes of data, 2: abs z-on-z changes of data
-aggOptions = [{'label': o, 'value': o} for o in ['Orig', 'to365/366', 'to52', 'to12', 'to1']] # Aggregations, to transform given time-series length into roughly daily, weekly or monthly
-aggchoice = aggOptions[0]['value']
-barOptions = [{'label': o, 'value': o} for o in ['Line', 'Bar', 'Bar labelled']] # Line and Bar plot
-barchoice = barOptions[0]['value']
-
-FIGURE = {
-    'data': [{'mode': linemode}],
-    'layout': {'xaxis': {}, 'yaxis': {}}
-}
-
-mydat_z = -1
-mygraph_single = False
-mydat = []
-myleg = []
-mytit = ''
-myauto = False
-auto_next_time = 0
 num_thread = 3 # Second interval duration
 duration_sec = 10
 
-# Download data initialize: Empty name & df
-download_name = ''
-download_fn = 'rawdata.csv' 
-download_df = pd.DataFrame()
 # Messagebox
 msg_for_box = ''
 
@@ -372,35 +327,6 @@ app.layout = html.Div(children=[
         ]),
     ]),
     dcc.Interval(id='interval-update', interval=1 * 1000,), # in milliseconds
-    dcc.Checklist(
-        id='check-boxes',
-        options=[{'label': 'Log y-axis', 'value': 'log'},
-                 {'label': 'Lock zoom', 'value': 'lock'},
-                 ],
-        values=[]
-    ),
-    html.Div(id='check-container', style={'display': 'none'}),
-
-    dcc.RadioItems(
-        id='sort-radio',
-        options=sortOptions,
-        value=sortchoice
-    ),
-    html.Div(id='sort-container', style={'display': 'none'}),
-
-    dcc.RadioItems(
-        id='agg-radio',
-        options=aggOptions,
-        value=aggchoice
-    ),
-    html.Div(id='agg-container', style={'display': 'none'}),
-
-    dcc.RadioItems(
-        id='bar-radio',
-        options=barOptions,
-        value=barchoice
-    ),
-    html.Div(id='bar-container', style={'display': 'none'}),
 ])
 
 ###############################################################################
@@ -566,68 +492,6 @@ def updatemsgboxtxt(currtext):
     return msg_for_box
 
 
-# My download: Create df of tak data, as typically used for file save functionality
-def update_download_df():
-    global mysave_z,mydat_z,myleg,mydat,mytit,download_df,download_name,download_fn
-    minsigdig = 4 # Minimal number of significant digits to impose
-    download_df = pd.DataFrame() # To clear it
-    if len(mydat):
-        for l,d in zip(myleg,mydat):
-            minlog10=10
-            for num in d:
-                if not (num == 0):
-                    minlog10=min(minlog10,math.floor(math.log10(abs(num))))
-            numfloatdig = max(0,minsigdig-minlog10)-1
-            download_df[l] = [round(d[t],numfloatdig) for t in range(len(d))]
-        download_df["Type"]=pd.Series([mytit])
-        download_df["Date"] = pd.Series([timestamp])
-        download_df["Copyright"] = pd.Series(oxee_copyright_listnocommas)
-        download_fn = fs('rawdata_shuffle.csv')
-        download_name = fs("Download from zoom'n'shuffle")
-    else:
-        download_name = ''
-
-## Get data & create the graph content
-def myupdatedfigure(relayout_data):
-    global mydat, myleg, mytit
-    new_figure = copy.deepcopy(FIGURE)
-    got_data = bool(len(mydat))
-    if got_data:
-        X = list(list(range(len(mydat[0]))))
-        y = [list([mydat[idx][t] for t in range(len(mydat[idx]))]) for idx in range(len(mydat))]
-        forcebar = len(X) == 1
-        allowbar = len(X) * len(y) < maxbar_allow
-        if forcebar or (allowbar and barchoice in ['Bar', 'Bar labelled']):
-            new_figure['data'] = [go.Bar(
-                x=X, y=y[idx],
-                text=[round(y[idx][i], 2) for i in range(len(y[idx]))] if (barchoice == 'Bar labelled') else [],
-                textposition='auto',
-                name=myleg[idx])
-                for idx in range(len(mydat))]
-        else:
-            new_figure['data'] = [plotly.graph_objs.Scatter(
-                x=X, y=y[idx],
-                name=myleg[idx], mode=linemode)
-                for idx in range(len(mydat))]
-        new_figure['layout']['title'] = mytit
-    else:
-        new_figure['data'] = []
-        new_figure['layout']['title'] = 'No data'
-    # Note relayout_data contains data on the zoom and range actions
-    if relayout_data and lockzoom:
-        if 'xaxis.range[0]' in relayout_data:
-            new_figure['layout']['xaxis']['range'] = [
-                relayout_data['xaxis.range[0]'],
-                relayout_data['xaxis.range[1]']
-            ]
-        if 'yaxis.range[0]' in relayout_data:
-            new_figure['layout']['yaxis']['range'] = [
-                relayout_data['yaxis.range[0]'],
-                relayout_data['yaxis.range[1]']
-            ]
-    if logaxis: new_figure['layout']['yaxis']['type'] = 'log'
-    return new_figure
-
 
 # Progressnce indication
 @app.callback(
@@ -655,23 +519,7 @@ def auto_interval_set(value):
     duration_sec = value
     return ''
 
-# Draw graph - if manual button pushed, or auto & >='auto_interval' (e.g. 5) sec since last
-@app.callback(
-    Output('my-graph', 'figure'),
-    state=[State('my-graph', 'relayoutData')],
-    events=[Event('interval-update', 'interval')])
-def draw_graph(relayout_data):
-    global myauto, mydat_z, mygraph_single, num_thread, auto_next_time
-    if not x.running(False):
-        raise PreventUpdate()
-    if not (myauto or mygraph_single):
-        raise PreventUpdate()
-    if not (mygraph_single or time.time()>=auto_next_time):
-        raise PreventUpdate()
-    else:
-        mygraph_single = False
-        auto_next_time = time.time() + num_thread
-    return myupdatedfigure(relayout_data)
+
 
 # BACKGROUND ON IMPORTANT 'Activate/Active' CONCEPT, implemented by means of the next 2-3 functions:
 #   Py Dash insists on auto-calling all callbacks upon page (re-)load!
