@@ -13,11 +13,11 @@ pointing to
 
 `/home/<yourusername>/empty_shell`
 
-i.e. the directory (without final slash /) where the application resides, and where it can read and write files & folders, i.e. with
+i.e. the directory (without final slash /) where the app resides (with rw premission), i.e. with
 
-*\<yourusername\>* = folder with your *empty_shell* repo clone
+*\<yourusername\>* = folder with your *empty_shell* clone
 
-*Don't forget you may need to restart system for this system variable to be recognized within python*
+*Don't forget possible system restart for the system variable to be recognized*
 
 #### 2. Set up virtualenv with its requirements etc.
 Starting within the repo folder, e.g. `/home/<yourusername>/empty_shell`:
