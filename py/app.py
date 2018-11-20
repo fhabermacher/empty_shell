@@ -106,16 +106,11 @@ oxee_copyright_listnocommas = [
     "is strictly prohibited"
     ]
 
-version = 'BlastFurnace_dev'
+version = 'Test'
 
 
 x = Api("myApi")
 sha256salt = x.sha256salt
-
-if False: # Auxiliary, just if want to conveniently see the hash for a new pw:
-    fd(sha256_crypt.using(salt=sha256salt).hash(passwordbox(fs(
-        "Password you'd like to see the hash for (iii mind, hash will be "
-        "displayed right afterwards!!! : "))))
 
 usercredlistV2str = x.getusercredlist()
 global customcurr
@@ -187,7 +182,6 @@ def file_download_link(sub,filename):
 
 if allow_web:
     fdc(flib.fdcolor.Red,"Currently avoiding external codeopen.io/chriddyp's css which creates inconvenient formatting")
-    #app.css.append_css({"external_url": "https://codepen.io/chriddyp/pen/bWLwgP.css"})
     app.css.append_css({
         'external_url': 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css'})
 
@@ -294,10 +288,7 @@ def up_div(name):
                         options=fileoptions[name],
                         multi=False,
                         placeholder="Select "+name+" file ...",
-                        value=usermodelfiles[name], # Mind, with multi, empty here means
-                        #  [], while without multi (i.e. if multi=False),
-                        # empty here means None (as '[]' would with non-multi
-                        # count as an element itself I reckon)
+                        value=usermodelfiles[name],
                     ),
                     style={'width': '40%','display': 'inline-block',}
                 ),
@@ -328,21 +319,16 @@ def up_div(name):
                         'margin': '10px',
                         'display': 'inline-block'
                     },
-                    multiple=True  # Allow multiple files to be uploaded
+                    multiple=True
                 ),
-                # Following suggestion 'html.I' for favicon button:
-                # https://community.plot.ly/t/representing-a-html-
-                # button-as-an-icon/7955
                 html.A(id='wipe-button'+name,n_clicks=0,
                        children=[html.I(className='fa fa-eraser')],
                        title='Wipe uploads', # title = Hovertext!
                        style={'display': 'inline-block'},
-                       href='#'), # Href '#' is for 'ineffective' href, cf. https://stackoverflow.com/a/8260561/3673329
+                       href='#'),
                 html.Div(id='wipe-container'+name, style={'display': 'none'}),
             ],
-            style={'display': 'none'} # We'll later change to 'inline' those
-                 # that are to be displayed
-            # style={'display': 'inline'}
+            style={'display': 'none'}
         )
     return dropdownanddragselect
 
@@ -369,45 +355,23 @@ app.layout = html.Div(children=[
         html.Div(id='create-container', style={'display': 'none'}),
         html.Div(id='launch-container',  style={'display': 'none'}),
         html.Div(id='msg-box',  style={'color': 'red', 'display': 'none'}),
-        html.Button('Halt', id='halt-button', disabled=True,title='Stop the model'),
-        html.Div(id='halt-container', children='Click to halt', style={'display': 'none'}),
-        html.Button('Pause', id='pause-button', disabled=True,title='Pause/Resume the model'),
-        html.Div(id='pause-container', children='Click to pause', style={'display': 'none'}),
     ]),
     maybeaction(allow_web),
     html.Div(id='prog-container',children=''),
     html.Div([
-        html.Div(id='mydat-container', style={'display': 'none'}),
-        html.Button('Plot', id='graph-button',title='Plot currently selected data'),
-        html.Div(id='graph-container', style={'display': 'none'}),
-        dcc.Checklist(
-            id='auto-box',
-            options=[{'label': 'Auto-plot', 'value': 1}],
-            values=[]
-        ),
-        html.Div(id='auto-container', style={'display': 'none'}),
         html.Div([
             dcc.Input(id='thread-input', type='number', inputmode='numeric', min=1, step=1, value=num_thread, maxlength=4),
             html.Span(children=' Number of threads '),
-            html.Span(children='',id='thread-container',style={'dispay': 'none'}),
+            html.Span(children='',id='thread-container',style={'display':
+                                                                   'none'}),
 
             dcc.Input(id='duration-input', type='number', inputmode='numeric', min=1, step=1, value=duration_sec, maxlength=4),
             html.Span(children=' Duration (sec) '),
-            html.Span(children='',id='duration-container',style={'dispay': 'none'}),
+            html.Span(children='',id='duration-container',style={'display':
+                                                                     'none'}),
         ]),
-        html.Button('Save Data for Download', id='save-button',title="Save current data, for download by click on link"),
-        html.A(children='',id='download-link',download=download_fn,
-            href="",target="_blank",title='Download the data by clicking link'
-        ),
     ]),
-
-    dcc.Graph(
-        id='my-graph',
-        figure=FIGURE
-    ),
-
     dcc.Interval(id='interval-update', interval=1 * 1000,), # in milliseconds
-
     dcc.Checklist(
         id='check-boxes',
         options=[{'label': 'Log y-axis', 'value': 'log'},
@@ -623,31 +587,6 @@ def update_download_df():
     else:
         download_name = ''
 
-# Update download file name
-@app.callback(
-    Output('download-link','download'),
-    events=[Event('interval-update', 'interval')])
-def update_link_display():
-    return download_fn
-
-# Update displayed download name
-@app.callback(
-    Output('download-link','children'),
-    events=[Event('interval-update', 'interval')])
-def update_link_text():
-    return download_name
-
-# Create the downloadable csv-file as a string in download's link href
-# Uses update_download_df()
-@app.callback(
-    dash.dependencies.Output('download-link', 'href'),
-    [dash.dependencies.Input('save-button', 'n_clicks')])
-def update_download_link(dummy_n_clicks):
-    if not created: raise PreventUpdate()
-    csv_string = download_df.to_csv(index=False, encoding='utf-8')
-    csv_string = "data:text/csv;charset=utf-8," + urllib.parse.quote(csv_string)
-    return csv_string
-
 ## Get data & create the graph content
 def myupdatedfigure(relayout_data):
     global mydat, myleg, mytit
@@ -698,29 +637,6 @@ def myupdatedfigure(relayout_data):
 def progress_text(origtext):
     return x.run_status()
 
-# Switch on/off auto-updating of graph
-@app.callback(
-    Output('auto-container','children'),
-    [Input('auto-box','values')])
-def auto_switch(values):
-    if not created: raise PreventUpdate()
-    global myauto
-    if 1 in values:
-        myauto = True
-    else:
-        myauto = False
-    return "Auto-graphing {0}".format("on" if myauto else "off")
-
-# Turn off auto-updating of graph when not running
-@app.callback(
-    Output('auto-box','values'),
-    events=[Event('interval-update', 'interval')])
-def auto_switch():
-    if not created: raise PreventUpdate()
-    if (created and x.running(False)): raise PreventUpdate()
-    return []
-
-
 
 # Set threads
 @app.callback(
@@ -756,16 +672,6 @@ def draw_graph(relayout_data):
         mygraph_single = False
         auto_next_time = time.time() + num_thread
     return myupdatedfigure(relayout_data)
-
-# Manual graph update registration - will be executed in next 'Draw graph' interval-event call
-@app.callback(
-    Output('graph-container', 'children'),
-    [Input('graph-button','n_clicks')])
-def manual_graph(n_clicks):
-    if not (created and x.running(False)): raise PreventUpdate()
-    global mygraph_single
-    mygraph_single = True
-    return "Manual updating"
 
 # BACKGROUND ON IMPORTANT 'Activate/Active' CONCEPT, implemented by means of the next 2-3 functions:
 #   Py Dash insists on auto-calling all callbacks upon page (re-)load!
@@ -843,38 +749,6 @@ def launch(n_clicks):
     print("Running now  .")
     return 'Launched {} times'.format(n_clicks)
 
-# Halt model
-@app.callback(
-    Output('halt-container','children'),
-    [Input('halt-button', 'n_clicks')])
-def update_halt(n_clicks):
-    if not active(): raise PreventUpdate()
-    x.haltanddeletesys()
-    return 'Halted {} times'.format(n_clicks)
-
-# Pause model
-@app.callback(
-    Output('pause-container','children'),
-    [Input('pause-button', 'n_clicks')])
-def update_pause(n_clicks):
-    if not active(): raise PreventUpdate()
-    x.togglepause()
-    return 'Paused {} times'.format(n_clicks)
-
-# Update pause button name to Pause/Resume, dependingon whether currently paused
-@app.callback(
-    Output('pause-button','children'),
-    events=[Event('interval-update', 'interval')])
-def update_pause_button_disp():
-    return "Resume" if x.ispaused(False) else "Pause"
-
-# Enable/Disable pause button dependingon whether running at all
-@app.callback(
-    Output('pause-button','disabled'),
-    events=[Event('interval-update', 'interval')])
-def update_pause_button_act():
-    return not (active() and x.running(False))
-
 def currfilesokay():
     for sub in up_sub:
         if customcurr[sub]:
@@ -893,13 +767,6 @@ def update_launch_button():
     #     if not currfilesokay():
     #         enable=False
     return not enable
-
-# Enable/Disable halt button depending on whether model running
-@app.callback(
-    Output('halt-button','disabled'),
-    events=[Event('interval-update', 'interval')])
-def update_halt_button():
-    return not (active() and x.running(False))
 
 @app.callback(
     Output('actiongifortxt','style'),
