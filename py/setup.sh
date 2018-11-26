@@ -17,7 +17,7 @@ sudo apt-get install python3-tk
 sudo apt-get install libboost1.58-all
 
 # Make sure we're having similar gcc setup, to avoid error like "/usr/lib/x86_64-linux-gnu/libstdc++.so.6: version `GLIBCXX_3.4.22' not found"
-#		Note, might be that first a "sudo apt-get upgrade libstdc++6" is required too; I shall check that.
+#        Note, might be that first a "sudo apt-get upgrade libstdc++6" is required too; I shall check that.
 sudo add-apt-repository ppa:ubuntu-toolchain-r/test
 sudo apt-get update
 sudo apt install gcc-6
@@ -27,8 +27,8 @@ sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 60 --slave /u
 VENV=venv
 virtualenv -p python3 "$VENV"
 . "$VENV/bin/activate"
+python3 -m pip install dash.ly --upgrade # Otherwise dash may not work despite it being in requirements.txt
 python3 -m pip install -r requirements.txt
-
 set +eu
 
 # TODO: adapt PS1
