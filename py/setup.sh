@@ -13,6 +13,8 @@ if [ $installTools -eq 1 ]; then
   sudo apt install $TOOLS
 fi
 
+sudo apt-get install python3-tk
+
 VENV=venv
 virtualenv -p python3 "$VENV"
 . "$VENV/bin/activate"
