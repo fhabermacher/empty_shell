@@ -14,6 +14,7 @@ if [ $installTools -eq 1 ]; then
 fi
 
 sudo apt-get install python3-tk
+sudo apt-get install libboost1.58-all
 
 VENV=venv
 virtualenv -p python3 "$VENV"
