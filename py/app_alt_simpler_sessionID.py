@@ -12,6 +12,7 @@ import sys
 import copy
 import pandas as pd
 import urllib.parse
+import uuid
 
 import os
 sys.path.append(os.environ['SAPO_TEST_DIR']+'/py/flib_py/')
@@ -29,7 +30,19 @@ app = dash.Dash(__name__)
 ###############################################################################
 ############################### Page layout ###################################
 ###############################################################################
-app.layout = html.Div(children=[
+x={}
+def serve_layout():
+    # Original place where plotly suggested to init session_id.
+    # But for me when I did here, at least on local machine, when having multiple
+    # browser sessions SIMULTANEOUSLY, they all got the same id.
+    # Hence I changed this, cf. onload_session_id
+    session_id = 'temp_should_be_overriden'
+    # session_id = str(uuid.uuid4())
+    # print('New layout, for session ID ',session_id)
+    # x[session_id]= ' '
+    return html.Div(children=[
+        # html.Div(session_id, id='session-id'),
+        html.Div(session_id, id='session-id', style={'display': 'none'}),
         dcc.Input(id='a',
             placeholder='Enter a value...',
             type='text',
@@ -37,30 +50,47 @@ app.layout = html.Div(children=[
         ),
         html.Button(children='Submit', id='b'),
         html.Button(children='Submit2',id='c'),
-        # dcc.Interval(id='interval-update', interval=1 * 1000,), # in milliseconds
-])
+        html.Div(id='dummy-div'),
+    ])
+
+
+app.layout = serve_layout()
+
 
 ###############################################################################
 ############################ Callback/Reactions ###############################
 ###############################################################################
 
-x = ' '
+@app.callback(
+    Output('session-id','children'),
+    [Input('dummy-div','children')]
+)
+def onload_session_id(aux):
+    session_id = str(uuid.uuid4())
+    print('Onload: New layout, attributing session ID ', session_id)
+    global x
+    x[session_id] = ' '
+    return session_id
+
 @app.callback(
     Output('b','children'),
-    [Input('a','value')]
+    [Input('a','value')],
+    [State('session-id','children')]
 )
-def doB(value):
+def doB(value,session_id):
     global x
-    x=value
+    x[session_id]=value
+    print("Session ID = ",session_id)
     return value
 
 @app.callback(
     Output('c','children'),
     [Input('c','n_clicks')],
-    [State('a','value')]
+    [State('a','value'),
+    State('session-id', 'children')]
 )
-def doC(n,value):
-    return x
+def doC(n,value,session_id):
+    return x[session_id]
 
 if __name__ == '__main__':
     # Use threaded=True OR processes=4 e.g. could give threading? https://community.plot.ly/t/dash-callbacks-are-not-async-handling-multiple-requests-and-callbacks-in-parallel/5848
