@@ -12,6 +12,7 @@ import sys
 import copy
 import pandas as pd
 import urllib.parse
+import uuid
 
 import os
 sys.path.append(os.environ['SAPO_TEST_DIR']+'/py/flib_py/')
@@ -27,8 +28,7 @@ from flib.flib import fdc as fdc
 
 # Set path to pylib model module containing python api:
 sys.path.append(fs(os.environ['SAPO_TEST_DIR'],'/py/pylib/'))
-from pylib import Api
-fd('Eventually change folder here & copy pylib.so into env SAPO_TEST_DIR')
+from pylib import User, Api
 from threading import Thread
 from easygui import passwordbox # As getpass fails to avoid echoing PW in prompt
 from passlib.hash import sha256_crypt
@@ -65,7 +65,7 @@ from dash.exceptions import PreventUpdate
 
 # Key options:
 # -General
-allow_web = False # Allow dash to request online resources. Set to False to
+allow_web = True # Allow dash to request online resources. Set to False to
 # avoid errors if not connected
 suppress_logging = False # Avoid regular line updates from e.g. interval event
 progressnce_silent = 1 # Avoid each zns from printing lots on comand line, instead only make a '.' to indicate next zoom'n'shuffle
@@ -92,10 +92,14 @@ Energy Economics is strictly prohibited.""".format(datestamp)
 
 version = 'Test'
 
-x = Api("myApi")
-sha256salt = x.sha256salt
+# General dict ss: session specific data
+ss = {}
+fdtmp("Euhh, many more variables should be moved from individual globals into session specific entry in dict ss")
 
-usercredlistV2str = x.getusercredlist()
+
+sha256salt = User.sha256salt
+
+usercredlistV2str = User.getusercredlist()
 global customcurr
 up_sub = ["sub1","sub2"] # All possible ones; we'll
 # idle them and activate only those that relevant for current user type
@@ -294,6 +298,8 @@ def up_div(name):
 ###############################################################################
 app.layout = html.Div(children=[
     dcc.Location(id='url', refresh=False),
+    html.Div("WAIT HERE SHOULD SEE SESSION ID AFTER PAGE LOAD", id='sid'),
+    # html.Div(session_id, id='session-id', style={'display': 'none'}),
     html.Div('',id='onload-only',style={'display': 'none'}),
     html.H2(children='SaPo Energy Model '+version),
     maybelogo(allow_web),
@@ -333,6 +339,16 @@ app.layout = html.Div(children=[
 ############################ Callback/Reactions ###############################
 ###############################################################################
 
+def xsidif(sid,alt='',abort=False,preventupdate=False):
+    if sid in ss:
+        return ss[sid]['x']
+    elif abort:
+        flib.ferr(__name__,": ss/x has no ",sid,"\n ss = ",ss)
+    elif preventupdate:
+        raise PreventUpdate
+    else:
+        return alt
+
 # Upload files. Cf. also
 #   https://docs.sherlockml.com/user-guide/apps/examples/dash_file_upload_download.html
 #   https://dash.plot.ly/dash-core-components/upload
@@ -355,13 +371,20 @@ def stored_files(sub,inclpath=False):
     return files
 
 
-# Auxiliary to help auto-updating file dropdown selection to last INDIVIDUAL
-#  uploaded file. None = no particular value to update to
-up_dd_update = {sub: None for sub in up_sub}
 # Auxiliary for... ah let me not talk about the dash limitations, but it's
 # to allow me to essentially create (combine) multiple callbacks for one
 # Output which Dash does not readily allow
 wipe_n_clicks_save= {sub: 0 for sub in up_sub}
+
+@app.callback(
+    Output('sid','children'),
+    [Input('onload-only','children')]
+)
+def onload_session_id(aux):
+    session_id = str(uuid.uuid4())
+    print('Onload: New layout, attributing session ID ', session_id)
+    return session_id
+
 
 for sub in up_sub:
     @app.callback(
@@ -370,11 +393,11 @@ for sub in up_sub:
          Input('upload-data'+sub, 'filename'),
          Input('upload-data'+sub, 'contents'),
          Input('file-dropdown'+sub, 'id'),
-         Input('wipe-button' + sub, 'n_clicks'),
-         ],
+         Input('wipe-button' + sub, 'n_clicks')],
+         state=[State('sid','children')],
     )
     def update_file_dd_or_wipe(dummy_txt,uploaded_filenames, uploaded_file_contents, id,
-                               wipe_n_clicks):
+                               wipe_n_clicks,sid):
         """Combined file dropdown options update callback:
         Needed to combine because each property allowed only ONE OUTPUT CALLBACK
         -File initialization at activation (pre-existing files on disk)
@@ -387,7 +410,12 @@ for sub in up_sub:
         """Save upload files, and store name."""
         if uploaded_filenames is not None and uploaded_file_contents is not None:
             if len(uploaded_filenames) is 1:
-                up_dd_update[sub_extracted] = uploaded_filenames[0]
+                if sid in ss:
+                    # Auxiliary to help auto-updating file dropdown selection to last INDIVIDUAL
+                    #  uploaded file. None = no particular value to update to
+                    ss[sid]['up_dd_update'][sub_extracted] = uploaded_filenames[0]
+                else:
+                    raise PreventUpdate
             for name, data in zip(uploaded_filenames, uploaded_file_contents):
                 save_file(name, data,sub_extracted)
         if (wipe_n_clicks==wipe_n_clicks_save[sub_extracted]): # For this
@@ -493,14 +521,15 @@ def updatemsgboxtxt(currtext):
 
 
 
-# Progressnce indication
+# Progress indication
 @app.callback(
     Output('prog-container','children'),
-    state=[State('prog-container','children')],
+    state=[State('prog-container','children'),
+           State('sid', 'children')],
     events=[Event('interval-update', 'interval')])
-def progress_text(origtext):
-    return x.run_status()
-
+def progress_text(origtext,sid):
+    status = xsidif(sid, "No init yet",False,True).run_status()
+    return status
 
 # Set threads
 @app.callback(
@@ -534,6 +563,7 @@ def auto_interval_set(value):
 # Indicator fct. telling whether app is 'active':
 #   Helper to manually avoid all callbacks from being fully executed on pageload
 idle_until = np.inf
+fdtmp("Also idle_until should be converted into be session specific - though can in addition have a default = inf if sid not exist (or maybe could do an entry for original default session name)")
 def active():
     global idle_until
     return time.time()>idle_until
@@ -542,12 +572,16 @@ def active():
 #   Also creates system: x.createsys, for authenticated user
 #  Enabling esp. also 'Launch' button after this delay.
 #       Update: only allow launch if user selected all files!
-#   Note, may gets executed automatically upon page load, else user simply to push the corresponding Activate button manually
+#   Note, may get executed automatically upon page load, else user simply to push the corresponding Activate button manually
 @app.callback(
     Output('activate-container','children'),
-    [Input('activate-button', 'n_clicks')])
-def activation(n_clicks):
-    x.authenticate(auth._username, auth._pwhash)
+    [Input('activate-button', 'n_clicks'),Input('onload-only','children')],
+    [State('sid', 'children')],)
+def activation(n_clicks,aux,sid):
+    ss[sid]={}
+    ss[sid]['x'] = Api("myapi")
+    ss[sid]['x'].authenticate(auth._username, auth._pwhash)
+    ss[sid]['up_dd_update'] = {sub: None for sub in up_sub}
     global user, customcurr, fileoptions, cookiedir, next_init_dropdown_value
     user = auth._username
     customcurr = {sub: True for idx,sub in enumerate(
@@ -565,11 +599,12 @@ def activation(n_clicks):
 
 @app.callback(
     Output('create-container','children'),
-    [Input('launch-button', 'n_clicks')],)
-def create(n_clicks):
+    [Input('launch-button', 'n_clicks')],
+    [State('sid', 'children')], )
+def create(n_clicks,sid):
     if not active(): raise PreventUpdate()
     # Create system:
-    result = x.createsys()
+    result = xsidif(sid,'',False,True).createsys()
     global msg_for_box
     msg_for_box = result
     if result:
@@ -583,13 +618,14 @@ def create(n_clicks):
     # Mind, Output here will not really be updated, as the t=Thread(...) launching
     # seems to block rest of function incl. the return/Output update!
     Output('launch-container','children'),
-    [Input('create-container', 'children')],)
-def launch(n_clicks):
-    if not active():
+    [Input('create-container', 'children')],
+    [State('sid', 'children')],)
+def launch(n_clicks,sid):
+    if not (active() and sid in ss):
         raise PreventUpdate()
     # Run it
     global threads, progressnce_silent
-    t = Thread(target=x.run(duration_sec,num_thread,progressnce_silent))
+    t = Thread(target=ss[sid]['x'].run(duration_sec,num_thread,progressnce_silent))
     # Hm, seems that the 't=Thread(..)' line already exits/stops fct. (?)
     # and rest below not really executed anymore
     threads.append(t)
@@ -600,27 +636,24 @@ def launch(n_clicks):
 def currfilesokay():
     for sub in up_sub:
         if customcurr[sub]:
-            # 'not x' is true if x is None or if it is empty string '', great:
             if not usermodelfiles[sub]: return False
     return True
 
 # Enable/Disable launch button depending on whether app 'active' & model running
 @app.callback(
     Output('launch-button','disabled'),
+    state=[State('sid', 'children')],
     events=[Event('interval-update', 'interval')])
-def update_launch_button():
-    enable = (not x.running(False)) and active()
-    # if enable: # Pbly must first check this separately, to avoid calling
-    #     # currfilesokay() before model is active at all
-    #     if not currfilesokay():
-    #         enable=False
+def update_launch_button(sid):
+    enable = active() and (sid in ss) and (not ss[sid]['x'].running(False))
     return not enable
 
 @app.callback(
     Output('actiongifortxt','style'),
+    state=[State('sid', 'children')],
     events=[Event('interval-update', 'interval')])
-def update_halt_button():
-    if active() and x.running(False):
+def update_halt_button(sid):
+    if active() and (sid in ss) and ss[sid]['x'].running(False):
         visibility = 'visible'
     else:
         visibility = 'hidden'

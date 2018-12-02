@@ -1,4 +1,6 @@
 py/venv/
 py/__pycache__/
+py/*/__pycache__/
+py/*/*/__pycache__/
 guestbook/*
 output/*
