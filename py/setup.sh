@@ -29,6 +29,12 @@ virtualenv -p python3 "$VENV"
 . "$VENV/bin/activate"
 python3 -m pip install dash.ly --upgrade # Otherwise dash may not work despite it being in requirements.txt
 python3 -m pip install -r requirements.txt
+
+# Prepare for gunicorn. Cf. https://www.digitalocean.com/community/tutorials/how-to-serve-flask-applications-with-gunicorn-and-nginx-on-ubuntu-16-04
+sudo apt-get install python3-dev nginx # Though: Is python3-dev sth that really goes beyond std. python and thus is not anyways always there?
+source venv/bin/activate
+pip install gunicorn flask # Though: I reckon flask may be superfluous here as we're anyways using dash where it's kind of integrated already?
+
 set +eu
 
 # TODO: adapt PS1
