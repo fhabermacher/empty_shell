@@ -27,7 +27,7 @@ from flib.flib import fdc as fdc
 
 # Set path to pylib model module containing python api:
 sys.path.append(fs(os.environ['SAPO_TEST_DIR'],'/py/pylib/'))
-from pylib import Api
+from pylib import User, Api
 fd('Eventually change folder here & copy pylib.so into env SAPO_TEST_DIR')
 from threading import Thread
 from easygui import passwordbox # As getpass fails to avoid echoing PW in prompt
@@ -92,10 +92,13 @@ Energy Economics is strictly prohibited.""".format(datestamp)
 
 version = 'Test'
 
-x = Api("myApi")
-sha256salt = x.sha256salt
+x = {}
+sha256salt = User.sha256salt
+# x = Api("myApi")
+# sha256salt = x.sha256salt
 
-usercredlistV2str = x.getusercredlist()
+usercredlistV2str = User.getusercredlist()
+# usercredlistV2str = x.getusercredlist()
 global customcurr
 up_sub = ["sub1","sub2"] # All possible ones; we'll
 # idle them and activate only those that relevant for current user type
@@ -294,6 +297,8 @@ def up_div(name):
 ###############################################################################
 app.layout = html.Div(children=[
     dcc.Location(id='url', refresh=False),
+    html.Div(session_id, id='session-id'),
+    # html.Div(session_id, id='session-id', style={'display': 'none'}),
     html.Div('',id='onload-only',style={'display': 'none'}),
     html.H2(children='SaPo Energy Model '+version),
     maybelogo(allow_web),
@@ -333,6 +338,16 @@ app.layout = html.Div(children=[
 ############################ Callback/Reactions ###############################
 ###############################################################################
 
+def xsidif(sid,alt='',abort=False,preventupdate=False):
+    if sid in x:
+        return x[sid]
+    elif abort:
+        flib.ferr(__name__,": x has no ",sid,"\n x = ",x)
+    elif preventupdate:
+        raise PreventUpdate
+    else:
+        return alt
+
 # Upload files. Cf. also
 #   https://docs.sherlockml.com/user-guide/apps/examples/dash_file_upload_download.html
 #   https://dash.plot.ly/dash-core-components/upload
@@ -362,6 +377,18 @@ up_dd_update = {sub: None for sub in up_sub}
 # to allow me to essentially create (combine) multiple callbacks for one
 # Output which Dash does not readily allow
 wipe_n_clicks_save= {sub: 0 for sub in up_sub}
+
+@app.callback(
+    Output('session-id','children'),
+    [Input('onload-only','children')]
+)
+def onload_session_id(aux):
+    session_id = str(uuid.uuid4())
+    print('Onload: New layout, attributing session ID ', session_id)
+    global x
+    x[session_id] = ' '
+    return session_id
+
 
 for sub in up_sub:
     @app.callback(
@@ -493,14 +520,15 @@ def updatemsgboxtxt(currtext):
 
 
 
-# Progressnce indication
+# Progress indication
 @app.callback(
     Output('prog-container','children'),
-    state=[State('prog-container','children')],
+    state=[State('prog-container','children'),
+           State('sid', 'children')],
     events=[Event('interval-update', 'interval')])
-def progress_text(origtext):
-    return x.run_status()
-
+def progress_text(origtext,sid):
+    return xsidif(sid,"No init yet").run_status()
+    # return x[sid].run_status()
 
 # Set threads
 @app.callback(
@@ -545,9 +573,11 @@ def active():
 #   Note, may gets executed automatically upon page load, else user simply to push the corresponding Activate button manually
 @app.callback(
     Output('activate-container','children'),
-    [Input('activate-button', 'n_clicks')])
-def activation(n_clicks):
-    x.authenticate(auth._username, auth._pwhash)
+    [Input('activate-button', 'n_clicks')],
+    [State('sid', 'children')],)
+def activation(n_clicks,sid):
+    x[sid] = Api("myapi")
+    x[sid].authenticate(auth._username, auth._pwhash)
     global user, customcurr, fileoptions, cookiedir, next_init_dropdown_value
     user = auth._username
     customcurr = {sub: True for idx,sub in enumerate(
@@ -565,11 +595,13 @@ def activation(n_clicks):
 
 @app.callback(
     Output('create-container','children'),
-    [Input('launch-button', 'n_clicks')],)
-def create(n_clicks):
+    [Input('launch-button', 'n_clicks')],
+    [State('sid', 'children')], )
+def create(n_clicks,sid):
     if not active(): raise PreventUpdate()
     # Create system:
-    result = x.createsys()
+    result = xsidif(sid,'',False,True).createsys()
+    # result = x[sid].createsys()
     global msg_for_box
     msg_for_box = result
     if result:
@@ -583,13 +615,14 @@ def create(n_clicks):
     # Mind, Output here will not really be updated, as the t=Thread(...) launching
     # seems to block rest of function incl. the return/Output update!
     Output('launch-container','children'),
-    [Input('create-container', 'children')],)
-def launch(n_clicks):
-    if not active():
+    [Input('create-container', 'children')],
+    [State('sid', 'children')],)
+def launch(n_clicks,sid):
+    if not (active() and sid in x):
         raise PreventUpdate()
     # Run it
     global threads, progressnce_silent
-    t = Thread(target=x.run(duration_sec,num_thread,progressnce_silent))
+    t = Thread(target=x[sid].run(duration_sec,num_thread,progressnce_silent))
     # Hm, seems that the 't=Thread(..)' line already exits/stops fct. (?)
     # and rest below not really executed anymore
     threads.append(t)
@@ -607,9 +640,10 @@ def currfilesokay():
 # Enable/Disable launch button depending on whether app 'active' & model running
 @app.callback(
     Output('launch-button','disabled'),
+    state=[State('sid', 'children')],
     events=[Event('interval-update', 'interval')])
-def update_launch_button():
-    enable = (not x.running(False)) and active()
+def update_launch_button(sid):
+    enable = active() and (sid in x) and (not x[sid].running(False))
     # if enable: # Pbly must first check this separately, to avoid calling
     #     # currfilesokay() before model is active at all
     #     if not currfilesokay():
@@ -618,9 +652,10 @@ def update_launch_button():
 
 @app.callback(
     Output('actiongifortxt','style'),
+    state=[State('sid', 'children')],
     events=[Event('interval-update', 'interval')])
-def update_halt_button():
-    if active() and x.running(False):
+def update_halt_button(sid):
+    if active() and (sid in x) and x[sid].running(False):
         visibility = 'visible'
     else:
         visibility = 'hidden'
