@@ -51,4 +51,5 @@ Login credentials in browser app:
    - You will see it progress in the text indication below the Launch button, right above the Plot button.
 	 - After the successful run, you'll see sth like:
 > After running. Worked 94 units, with max 3 (requested 3) threads
+5. Multi-session use: Functionality for multiple sessions by now half-heartedly implemented. Raw 'Launch' & ensuing calculations should work. But expect cross-session interference for things like: data upload, activation, thread & runtime choice.
 		
