@@ -100,13 +100,8 @@ fdtmp("Euhh, many more variables should be moved from individual globals into se
 sha256salt = User.sha256salt
 
 usercredlistV2str = User.getusercredlist()
-global customcurr
 up_sub = ["sub1","sub2"] # All possible ones; we'll
-# idle them and activate only those that relevant for current user type
-customcurr = {sub: False for sub in up_sub} # Preliminary assignment
 VALID_USERNAME_PWHASH_PAIRS = [[s for s in pair] for pair in usercredlistV2str]
-global user
-created = False
 app = dash.Dash(__name__)
 auth = dash_auth.BasicAuth(
     app,
@@ -189,29 +184,21 @@ def maybeaction(allow):
     else:
         return html.Div('RUNNING',id='actiongifortxt',style={'visibility': 'hidden'})
 
-threads = []
-
-progressd_str = 'SOLVED'
-conv_share_str_base = 'Solved ca. '
-
+# threads = []
 
 next_init_dropdown_value = {sub: False for sub in up_sub}
 
-num_thread = 3 # Second interval duration
-duration_sec = 10
-
-# Messagebox
-msg_for_box = ''
+num_thread_init = 3 # Second interval duration
+duration_sec_init = 10
 
 
 app.title='SaPo @ Oxford Energy Economics'
-
 
 usermodelfiles = {sub: None for sub in up_sub}
 
 global cookiedir
 
-def load_cookie():
+def load_cookie(sid):
     global usermodelfiles
     filename = cookiedir+'modelfiles.p'
     try:
@@ -223,7 +210,7 @@ def load_cookie():
         for sub,val in usermodelfiles.items():
             if sub in usermodelfiles_restore:
                 usermodelfiles[sub] = usermodelfiles_restore[sub]
-            if (val is None) or (not os.path.isfile(userfolder(user,sub)+val)):
+            if (val is None) or (not os.path.isfile(userfolder(ss[sid]['user'],sub)+val)):
                 fd("Cookie entry ignored: file ",val," @ ",sub," not found")
                 usermodelfiles[sub] = None
         fd('User model file choice loaded from server cookie')
@@ -321,12 +308,12 @@ app.layout = html.Div(children=[
     html.Div(id='prog-container',children=''),
     html.Div([
         html.Div([
-            dcc.Input(id='thread-input', type='number', inputmode='numeric', min=1, step=1, value=num_thread, maxlength=4),
+            dcc.Input(id='thread-input', type='number', inputmode='numeric', min=1, step=1, value=num_thread_init, maxlength=4, disabled=True),
             html.Span(children=' Number of threads '),
             html.Span(children='',id='thread-container',style={'display':
                                                                    'none'}),
 
-            dcc.Input(id='duration-input', type='number', inputmode='numeric', min=1, step=1, value=duration_sec, maxlength=4),
+            dcc.Input(id='duration-input', type='number', inputmode='numeric', min=1, step=1, value=duration_sec_init, maxlength=4, disabled=True),
             html.Span(children=' Duration (sec) '),
             html.Span(children='',id='duration-container',style={'display':
                                                                      'none'}),
@@ -381,9 +368,9 @@ wipe_n_clicks_save= {sub: 0 for sub in up_sub}
     [Input('onload-only','children')]
 )
 def onload_session_id(aux):
-    session_id = str(uuid.uuid4())
-    print('Onload: New layout, attributing session ID ', session_id)
-    return session_id
+    sid = str(uuid.uuid4()) # The session ID: sid
+    print('Onload: New layout, attributing session ID ', sid)
+    return sid
 
 
 for sub in up_sub:
@@ -429,7 +416,7 @@ for sub in up_sub:
                     'value': os.path.basename(file)} for file in
                    stored_files(sub_extracted)]
         else:
-            if (not active()):
+            if (not active(sid)):
                 wipe_n_clicks_save[sub_extracted] = wipe_n_clicks
                 raise PreventUpdate
             """Wipe uploaded files."""
@@ -445,8 +432,10 @@ for sub in up_sub:
         [Input('activate-container','children'), # Should change only once
          # at activation
          Input('file-dropdown' + sub, 'options'),
-         Input('file-dropdown'+sub, 'id')])
-    def dropdownoptions(dummy_txt, dummy_opt, id):
+         Input('file-dropdown'+sub, 'id')],
+        state=[State('sid','children')]
+    )
+    def dropdownoptions(dummy_txt, dummy_opt, id,sid):
         sub_extracted = id[len("file-dropdown"):] # Need this cumbersome way
         global next_init_dropdown_value
         if next_init_dropdown_value[sub_extracted]:
@@ -454,7 +443,7 @@ for sub in up_sub:
             next_init_dropdown_value[sub_extracted]=False
             value = usermodelfiles[sub_extracted]
         elif (up_dd_update[sub_extracted] is not None):
-            if not active(): raise PreventUpdate
+            if not active(sid): raise PreventUpdate
             """Update dropdown options with single newly-added file."""
             value = up_dd_update[sub_extracted]
             up_dd_update[sub_extracted]=None
@@ -466,12 +455,12 @@ for sub in up_sub:
         [Input('activate-container','children'), # Should change only once
          # at activation
          Input('filesub'+sub, 'id')],
-        state=[State('filesub'+sub, 'style')])
-    def enable_customfile_current(dummy_txt, id,origstyle):
+        state=[State('filesub'+sub, 'style'),
+               State('sid','children')])
+    def enable_customfile_current(dummy_txt, id,origstyle,sid):
         sub_extracted = id[len("filesub"):] # Need this cumbersome way
-        global customcurr
         style=origstyle
-        style['display'] = 'inline' if customcurr[sub_extracted] else 'none'
+        style['display'] = 'inline' if (sid in ss) and ss[sid]['customcurr'][sub_extracted] else 'none'
         return style
 
     @app.callback(
@@ -511,13 +500,16 @@ def updatemsgboxdisabled(text,origstyle):
 
 @app.callback(
     Output('msg-box','children'),
-    state=[State('msg-box','children')],
+    state=[State('msg-box','children'),
+           State('sid','children')],
     events=[Event('interval-update', 'interval')]
 )
-def updatemsgboxtxt(currtext):
-    if (msg_for_box is currtext):
+def updatemsgboxtxt(currtext,sid):
+    if not sid in ss:
         raise PreventUpdate
-    return msg_for_box
+    if (ss[sid]['msg_for_box'] is currtext):
+        raise PreventUpdate
+    return ss[sid]['msg_for_box']
 
 
 
@@ -534,18 +526,24 @@ def progress_text(origtext,sid):
 # Set threads
 @app.callback(
     Output('thread-container','children'),
-    [Input('thread-input','value')])
-def auto_interval_set(value):
-    global num_thread
-    num_thread = value
+    [Input('thread-input','value')],
+    state=[State('sid','children')])
+def auto_interval_set(value,sid):
+    if sid in ss:
+        ss[sid]['num_thread'] = value
+    else:
+        raise PreventUpdate
     return ''
 # Set duration
 @app.callback(
     Output('duration-container','children'),
-    [Input('duration-input','value')])
-def auto_interval_set(value):
-    global duration_sec
-    duration_sec = value
+    [Input('duration-input','value')],
+    state=[State('sid', 'children')])
+def auto_interval_set(value,sid):
+    if sid in ss:
+        ss[sid]['duration_sec'] = value
+    else:
+        raise PreventUpdate
     return ''
 
 
@@ -562,11 +560,8 @@ def auto_interval_set(value):
 
 # Indicator fct. telling whether app is 'active':
 #   Helper to manually avoid all callbacks from being fully executed on pageload
-idle_until = np.inf
-fdtmp("Also idle_until should be converted into be session specific - though can in addition have a default = inf if sid not exist (or maybe could do an entry for original default session name)")
-def active():
-    global idle_until
-    return time.time()>idle_until
+def active(sid):
+    return (sid in ss) and time.time()>ss[sid]['idle_until']
 
 # 'Activate' app with delay of 2 sec to 'survive' page-load period where dash app may sadly auto-call all callback functions automatically:
 #   Also creates system: x.createsys, for authenticated user
@@ -582,19 +577,22 @@ def activation(n_clicks,aux,sid):
     ss[sid]['x'] = Api("myapi")
     ss[sid]['x'].authenticate(auth._username, auth._pwhash)
     ss[sid]['up_dd_update'] = {sub: None for sub in up_sub}
-    global user, customcurr, fileoptions, cookiedir, next_init_dropdown_value
-    user = auth._username
-    customcurr = {sub: True for idx,sub in enumerate(
+    global fileoptions, cookiedir, next_init_dropdown_value
+    ss[sid]['user'] = auth._username
+    ss[sid]['num_thread'] = num_thread_init
+    ss[sid]['duration_sec'] = duration_sec_init
+    ss[sid]['msg_for_box'] = ' '
+    auth._username = '' # High time to erase it to avoid mistaken re-use e.g. in other sessions or so.
+    ss[sid]['customcurr'] = {sub: True for idx,sub in enumerate(
         up_sub)}
-    createuserfoldersmaybe(user)
+    createuserfoldersmaybe(ss[sid]['user'])
     fileoptions = {sub: [{'label': file, 'value': file} for file in
                          flib.filesinpath(dir)] for sub, dir in
                    upload_dir.items()}
-    cookiedir = userfolder(user, 'cookie')
-    load_cookie()
+    cookiedir = userfolder(ss[sid]['user'], 'cookie')
+    load_cookie(sid)
     next_init_dropdown_value = {sub: True for sub in up_sub}
-    global idle_until
-    idle_until = time.time() + 2
+    ss[sid]['idle_until'] = time.time() + 2
     return "Activated"
 
 @app.callback(
@@ -602,16 +600,13 @@ def activation(n_clicks,aux,sid):
     [Input('launch-button', 'n_clicks')],
     [State('sid', 'children')], )
 def create(n_clicks,sid):
-    if not active(): raise PreventUpdate()
+    if not active(sid): raise PreventUpdate()
     # Create system:
     result = xsidif(sid,'',False,True).createsys()
-    global msg_for_box
-    msg_for_box = result
+    ss[sid]['msg_for_box'] = result
     if result:
         fd(result)
         raise PreventUpdate
-    global created
-    created = True
     return 'Launched (Created) {} times'.format(n_clicks)
 
 @app.callback(
@@ -621,23 +616,23 @@ def create(n_clicks,sid):
     [Input('create-container', 'children')],
     [State('sid', 'children')],)
 def launch(n_clicks,sid):
-    if not (active() and sid in ss):
+    if not active(sid):
         raise PreventUpdate()
     # Run it
-    global threads, progressnce_silent
-    t = Thread(target=ss[sid]['x'].run(duration_sec,num_thread,progressnce_silent))
-    # Hm, seems that the 't=Thread(..)' line already exits/stops fct. (?)
-    # and rest below not really executed anymore
-    threads.append(t)
-    t.start()
-    print("Running now  .")
+    global progressnce_silent
+    # global threads, progressnce_silent
+    print("Launching now .")
+    # = Tread(target=...) Syntax doesn't really seem to bring any advantage as ONE thread anyways gets blocked here,
+    # So might as well directly 'run' it w/o trying to externalize thread:
+    #   [Note, at least when locally, directly launching app using venv & ./app.py instead of using gunicorn/uwsgi]
+    ss[sid]['x'].run(ss[sid]['duration_sec'],ss[sid]['num_thread'],progressnce_silent)
+    # t = Thread(target=ss[sid]['x'].run(ss[sid]['duration_sec'],ss[sid]['num_thread'],progressnce_silent))
+    # # Hm, seems that the 't=Thread(..)' line already exits/stops fct. (?)
+    # # and rest below not really executed anymore
+    # threads.append(t)
+    # t.start()
+    print("Finished running .")
     return 'Launched {} times'.format(n_clicks)
-
-def currfilesokay():
-    for sub in up_sub:
-        if customcurr[sub]:
-            if not usermodelfiles[sub]: return False
-    return True
 
 # Enable/Disable launch button depending on whether app 'active' & model running
 @app.callback(
@@ -645,7 +640,23 @@ def currfilesokay():
     state=[State('sid', 'children')],
     events=[Event('interval-update', 'interval')])
 def update_launch_button(sid):
-    enable = active() and (sid in ss) and (not ss[sid]['x'].running(False))
+    enable = active(sid) and (not ss[sid]['x'].running(False))
+    return not enable
+
+@app.callback(
+    Output('thread-input','disabled'),
+    state=[State('sid', 'children')],
+    events=[Event('interval-update', 'interval')])
+def update_thread_disability(sid):
+    enable = active(sid)
+    return not enable
+
+@app.callback(
+    Output('duration-input','disabled'),
+    state=[State('sid', 'children')],
+    events=[Event('interval-update', 'interval')])
+def update_thread_disability(sid):
+    enable = active(sid)
     return not enable
 
 @app.callback(
@@ -653,7 +664,7 @@ def update_launch_button(sid):
     state=[State('sid', 'children')],
     events=[Event('interval-update', 'interval')])
 def update_halt_button(sid):
-    if active() and (sid in ss) and ss[sid]['x'].running(False):
+    if active(sid) and ss[sid]['x'].running(False):
         visibility = 'visible'
     else:
         visibility = 'hidden'
