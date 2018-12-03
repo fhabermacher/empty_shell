@@ -673,6 +673,8 @@ def update_halt_button(sid):
 if __name__ == '__main__':
     # Use threaded=True OR processes=4 e.g. could give threading? https://community.plot.ly/t/dash-callbacks-are-not-async-handling-multiple-requests-and-callbacks-in-parallel/5848
     #   Mind: AH: Spanning new process = creating full copy of all! So cannot use that at all in my way...
+    on_massivegrid = True
+    if on_massivegrid: os.environ['SAPO_TEST_DIR'] = '/var/empty_shell'
     app.run_server(debug=True, threaded=True, use_reloader = False)
     # app.run_server(debug=True, threaded=False)
     # app.run_server(debug=True, threaded=False, processes = 4)
