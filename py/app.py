@@ -38,6 +38,7 @@ from flask import request, send_from_directory # request: So can get URL with
 import logging
 import base64
 import io
+
 from urllib.parse import quote as urlquote
 import pickle
 # Dash-Auth, for BasicAuth, nice login: Note, requires to store raw username & password pairs.
@@ -629,6 +630,7 @@ def launch(n_clicks,sid):
     # Hm, seems that the 't=Thread(..)' line already exits/stops fct. (?)
     # and rest below not really executed anymore
     threads.append(t)
+    t.daemon = True
     t.start()
     print("Running now  .")
     return 'Launched {} times'.format(n_clicks)
@@ -662,6 +664,7 @@ def update_halt_button(sid):
 if __name__ == '__main__':
     # Use threaded=True OR processes=4 e.g. could give threading? https://community.plot.ly/t/dash-callbacks-are-not-async-handling-multiple-requests-and-callbacks-in-parallel/5848
     #   Mind: AH: Spanning new process = creating full copy of all! So cannot use that at all in my way...
+    os.environ['SAPO_TEST_DIR'] = '/var/empty_shell'
     app.run_server(debug=True, threaded=True, use_reloader = False)
     # app.run_server(debug=True, threaded=False)
     # app.run_server(debug=True, threaded=False, processes = 4)
