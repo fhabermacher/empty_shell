@@ -1,4 +1,7 @@
 # empty_shell
+## Attention: Security alert (vulnerability)
+Some of the public resources (dash) used in here seem to have a high severity security vulnerability that I had no time yet to take care of (not actively using the tool right atm), please consider the warning
+`yarn.lock update suggested: lodash ~> 4.17.13`
 ## Prerequisites
 
 1. Ubuntu 16.04 (this is where some of the code was written on)
