@@ -442,11 +442,11 @@ for sub in up_sub:
             """Update dropdown options with cookie-file right after activation."""
             next_init_dropdown_value[sub_extracted]=False
             value = usermodelfiles[sub_extracted]
-        elif (up_dd_update[sub_extracted] is not None):
+        elif (ss[sid]['up_dd_update'][sub_extracted] is not None):
             if not active(sid): raise PreventUpdate
             """Update dropdown options with single newly-added file."""
-            value = up_dd_update[sub_extracted]
-            up_dd_update[sub_extracted]=None
+            value = ss[sid]['up_dd_update'][sub_extracted]
+            ss[sid]['up_dd_update'][sub_extracted]=None
         else: raise PreventUpdate
         return value
 
